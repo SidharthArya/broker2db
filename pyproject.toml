@@ -4,7 +4,14 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "aiocache[redis]>=0.12.3",
+    "argparse>=1.4.0",
+    "bytewax[kafka]>=0.21.1",
+    "orjson>=3.10.18",
+    "psycopg>=3.2.9",
+    "sqlalchemy>=2.0.41",
+]
 
 [build-system]
 requires = ["hatchling"]
