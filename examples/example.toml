@@ -1,0 +1,13 @@
+[settings]
+postgres-url = "postgresql+psycopg://localhost:5432"
+kafka-broker = "localhost:9092"
+# ---
+[index1]
+type = "stream"
+source-type = "kafka"
+source = "temp_topic"
+destination-type = "postgres"
+postgres-database = "tempdb"
+destination = "temptb"
+
+
