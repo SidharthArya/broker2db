@@ -1,18 +1,19 @@
 """
 Main Entrypoint
 """
+import asyncio
+import tomllib
+import functools
+
 from bytewax import operators as op
-from bytewax.connectors.kafka import operators as kop
 from bytewax.connectors.kafka import KafkaSourceMessage
 # from broker2db.utils.arguments import args
 from bytewax.dataflow import Dataflow
 from sqlalchemy import text
+import orjson
 
-import asyncio
 from broker2db.broker.kafka import get_kafka_input
 from broker2db.db.postgres import get_engine
-import tomllib
-import orjson
 
 with open("examples/example.toml", "rb") as f:
     t = tomllib.load(f)
@@ -25,7 +26,10 @@ else:
     settings = {}
 
 def serialize_source(x):
-    values = orjson.loads(x.value)
+    """
+    Serialize Kafka Source
+    """
+    values = orjson.loads(x.value)  # pylint: disable=no-member
     headers = x.headers
     latency = x.latency
     offset = x.offset
@@ -43,11 +47,14 @@ def serialize_source(x):
     )
 
 def make_query(x, table_name):
+    """
+    Make Postgres Query
+    """
     columns = []
     values = []
     for k, v in x.value.items():
         columns.append(k)
-        if type(v) != str:
+        if isinstance(v, str):
             values.append(str(v))
         else:
             values.append(f"'{v}'")
@@ -55,12 +62,18 @@ def make_query(x, table_name):
     return query
 
 def execute_query(query, engine):
+    """
+    Executes Insert or Update Query in Postgres
+    """
     with engine.connect() as conn:
         conn.execute(text(query))
         conn.commit()
     return "Success"
 
 async def main(flow):
+    """
+    Main Flow for broker2db
+    """
     for k, v in t.items():
         if k == "settings":
             continue
@@ -68,18 +81,21 @@ async def main(flow):
         if v["source-type"] == 'kafka':
             print("Here")
             brokers = [settings["kafka-broker"]]
-            source_input = (await get_kafka_input(brokers=brokers, config={}, topic=v["source"]))
+            source_input = await get_kafka_input(brokers=brokers, config={}, topic=v["source"])
             source = source_input(f"{k}-source", flow)
             source_deser = op.map("{k}-source-deser", source.oks, serialize_source)
-        
+        else:
+            continue
+
         if v["destination-type"] == 'postgres':
-            target_engine = get_engine(settings['postgres-url'], v['postgres-database'])
-            destination = v['destination']
-            queries = op.map(f"{k}-query", source_deser, lambda x: make_query(x, destination))
-            push = op.map(f"{k}-to-destination", queries, lambda query: execute_query(query, target_engine))
-            op.inspect("inspector", queries)
+            query_function = functools.partial(lambda x, v: make_query(x, v["destination"]), v=v)
+            queries = op.map(f"{k}-query", source_deser, query_function)
+            engine = get_engine(settings['postgres-url'], v['postgres-database'])
+            query_exec = functools.partial(execute_query, engine=engine)
+            push = op.map(f"{k}-to-destination", queries, query_exec)
+            op.inspect("inspector", push)
 
 print(__name__)
 # DataFlow
-flow = Dataflow("broker2db")
-asyncio.run(main(flow))
+dataflow = Dataflow("broker2db")
+asyncio.run(main(dataflow))

@@ -9,8 +9,6 @@ Process all settings
 
 """
 import argparse
-from argparse import Action
-import os
 
 parser = argparse.ArgumentParser(
     prog="broker2db",

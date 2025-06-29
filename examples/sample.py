@@ -1,5 +1,9 @@
-from confluent_kafka import Producer
+"""
+An example message for kafka
+"""
 import json
+
+from confluent_kafka import Producer
 
 producer = Producer({
     'bootstrap.servers': 'localhost:9092'
